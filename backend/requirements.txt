@@ -1,2 +1,9 @@
 fastapi
-uvicorn
+uvicorn[standard]
+sqlalchemy[asyncio]
+aiomysql
+pydantic[email]
+pydantic-settings
+python-jose[cryptography]
+passlib[bcrypt]
+python-dotenv
