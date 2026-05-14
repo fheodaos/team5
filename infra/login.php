@@ -40,7 +40,7 @@ if( isset( $_POST[ 'Login' ] ) ) {
 
 	// Login failed
 	dvwaMessagePush( 'Login failed' );
-	dvwaRedirect( 'login.php' );
+	dvwaRedirect( 'login.php?error=1' );
 }
 
 $messagesHtml = messagesPopAllToHtml();
@@ -51,6 +51,8 @@ Header( 'Expires: Tue, 23 Jun 2009 12:00:00 GMT' );     // Date in the past
 
 // Anti-CSRF
 generateSessionToken();
+
+$loginError = isset( $_GET['error'] ) && $_GET['error'] == '1';
 
 echo "
 <!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">
@@ -68,6 +70,8 @@ echo "
 	</head>
 
 	<body>
+
+	" . ( $loginError ? '<script>alert(\'아이디, 비밀번호를 확인해주세요\');</script>' : '' ) . "
 
 	<div id=\"wrapper\">
 
