@@ -33,6 +33,15 @@ if( isset( $_POST[ 'Login' ] ) ) {
 	// Anti-CSRF
 	checkToken( $_REQUEST[ 'user_token' ], $_SESSION[ 'session_token' ], 'login.php' );
 
+	// CAPTCHA 검증 (5회 이상 실패 시)
+	if ( countRecentAttempts( $_SERVER['REMOTE_ADDR'] ) >= 5 ) {
+		$captchaInput = isset( $_POST['captcha'] ) ? strtoupper( trim( $_POST['captcha'] ) ) : '';
+		$captchaCode  = isset( $_SESSION['captcha_code'] ) ? $_SESSION['captcha_code'] : '';
+		if ( $captchaInput !== $captchaCode ) {
+			dvwaRedirect( 'login.php?error=captcha' );
+		}
+	}
+
 	$user = $_POST[ 'username' ];
 	$user = stripslashes( $user );
 	$user = ((isset($GLOBALS["___mysqli_ston"]) && is_object($GLOBALS["___mysqli_ston"])) ? mysqli_real_escape_string($GLOBALS["___mysqli_ston"],  $user ) : ((trigger_error("[MySQLConverterToo] Fix the mysql_escape_string() call! This code does not work.", E_USER_ERROR)) ? "" : ""));
@@ -55,6 +64,7 @@ if( isset( $_POST[ 'Login' ] ) ) {
 	$query  = "SELECT * FROM `users` WHERE user='$user' AND password='$pass';";
 	$result = @mysqli_query($GLOBALS["___mysqli_ston"],  $query ) or die( '<pre>' . ((is_object($GLOBALS["___mysqli_ston"])) ? mysqli_error($GLOBALS["___mysqli_ston"]) : (($___mysqli_res = mysqli_connect_error()) ? $___mysqli_res : false)) . '.<br />Try <a href="setup.php">installing again</a>.</pre>' );
 	if( $result && mysqli_num_rows( $result ) == 1 ) {    // Login Successful...
+		unset( $_SESSION['require_captcha'] );
 		dvwaMessagePush( "You have logged in as '{$user}'" );
 		dvwaLogin( $user );
 		dvwaRedirect( DVWA_WEB_PAGE_TO_ROOT . 'index.php' );
@@ -62,13 +72,15 @@ if( isset( $_POST[ 'Login' ] ) ) {
 
 	// Login failed
 	recordAttempt( $_SERVER['REMOTE_ADDR'] );
+	if ( countRecentAttempts( $_SERVER['REMOTE_ADDR'] ) >= 5 ) {
+		$_SESSION['require_captcha'] = true;
+	}
 	dvwaMessagePush( 'Login failed' );
 	dvwaRedirect( 'login.php?error=1' );
 }
 
 $messagesHtml   = messagesPopAllToHtml();
-$recentAttempts = countRecentAttempts( $_SERVER['REMOTE_ADDR'] );
-$showExtraField = $recentAttempts >= 5;
+$showExtraField = isset( $_SESSION['require_captcha'] ) && $_SESSION['require_captcha'];
 
 Header( 'Cache-Control: no-cache, must-revalidate');
 Header( 'Content-Type: text/html;charset=utf-8' );
@@ -77,7 +89,8 @@ Header( 'Expires: Tue, 23 Jun 2009 12:00:00 GMT' );
 // Anti-CSRF
 generateSessionToken();
 
-$loginError = isset( $_GET['error'] ) && $_GET['error'] == '1';
+$loginError    = isset( $_GET['error'] ) && $_GET['error'] === '1';
+$captchaError  = isset( $_GET['error'] ) && $_GET['error'] === 'captcha';
 
 echo "
 <!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">
@@ -96,7 +109,8 @@ echo "
 
 	<body>
 
-	" . ( $loginError ? '<script>alert(\'아이디, 비밀번호를 확인해주세요\');</script>' : '' ) . "
+	" . ( $loginError   ? '<script>alert(\'아이디, 비밀번호를 확인해주세요\');</script>' : '' ) . "
+	" . ( $captchaError ? '<script>alert(\'CAPTCHA 코드가 올바르지 않습니다\');</script>'  : '' ) . "
 
 	<div id=\"wrapper\">
 
@@ -122,7 +136,10 @@ echo "
 
 			" . ( $showExtraField ? '
 			<br />
-			<label for=\"extra\">추가 인증</label> <input type=\"text\" class=\"loginInput\" size=\"20\" name=\"extra_auth\" placeholder=\"추가 인증 코드를 입력하세요\"><br />
+			<label>보안 문자</label><br />
+			<img src="captcha.php" id="captcha-img" style="display:block; margin:6px 0; border:1px solid #ccc;" /><br />
+			<a href="#" onclick="document.getElementById(\'captcha-img\').src=\'captcha.php?\'+Date.now(); return false;" style="font-size:12px;">↺ 새로고침</a><br />
+			<input type="text" class="loginInput" size="20" name="captcha" placeholder="위 문자를 입력하세요" autocomplete="off"><br />
 			' : '' ) . "
 
 			<br />
