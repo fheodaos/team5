@@ -7,6 +7,28 @@ dvwaPageStartup( array( 'phpids' ) );
 
 dvwaDatabaseConnect();
 
+// ── IP별 로그인 시도 횟수 추적 ──
+function getAttemptFile( $ip ) {
+	return '/tmp/dvwa_attempts_' . md5( $ip ) . '.json';
+}
+
+function countRecentAttempts( $ip ) {
+	$file = getAttemptFile( $ip );
+	if ( !file_exists( $file ) ) return 0;
+	$data = json_decode( file_get_contents( $file ), true ) ?: [];
+	$now  = time();
+	return count( array_filter( $data, function( $t ) use ( $now ) { return $now - $t < 60; } ) );
+}
+
+function recordAttempt( $ip ) {
+	$file = getAttemptFile( $ip );
+	$data = file_exists( $file ) ? ( json_decode( file_get_contents( $file ), true ) ?: [] ) : [];
+	$now  = time();
+	$data = array_values( array_filter( $data, function( $t ) use ( $now ) { return $now - $t < 60; } ) );
+	$data[] = $now;
+	file_put_contents( $file, json_encode( $data ) );
+}
+
 if( isset( $_POST[ 'Login' ] ) ) {
 	// Anti-CSRF
 	checkToken( $_REQUEST[ 'user_token' ], $_SESSION[ 'session_token' ], 'login.php' );
@@ -39,15 +61,18 @@ if( isset( $_POST[ 'Login' ] ) ) {
 	}
 
 	// Login failed
+	recordAttempt( $_SERVER['REMOTE_ADDR'] );
 	dvwaMessagePush( 'Login failed' );
 	dvwaRedirect( 'login.php?error=1' );
 }
 
-$messagesHtml = messagesPopAllToHtml();
+$messagesHtml   = messagesPopAllToHtml();
+$recentAttempts = countRecentAttempts( $_SERVER['REMOTE_ADDR'] );
+$showExtraField = $recentAttempts >= 5;
 
-Header( 'Cache-Control: no-cache, must-revalidate');    // HTTP/1.1
-Header( 'Content-Type: text/html;charset=utf-8' );      // TODO- proper XHTML headers...
-Header( 'Expires: Tue, 23 Jun 2009 12:00:00 GMT' );     // Date in the past
+Header( 'Cache-Control: no-cache, must-revalidate');
+Header( 'Content-Type: text/html;charset=utf-8' );
+Header( 'Expires: Tue, 23 Jun 2009 12:00:00 GMT' );
 
 // Anti-CSRF
 generateSessionToken();
@@ -93,8 +118,12 @@ echo "
 
 			<label for=\"user\">Username</label> <input type=\"text\" class=\"loginInput\" size=\"20\" name=\"username\"><br />
 
-
 			<label for=\"pass\">Password</label> <input type=\"password\" class=\"loginInput\" AUTOCOMPLETE=\"off\" size=\"20\" name=\"password\"><br />
+
+			" . ( $showExtraField ? '
+			<br />
+			<label for=\"extra\">추가 인증</label> <input type=\"text\" class=\"loginInput\" size=\"20\" name=\"extra_auth\" placeholder=\"추가 인증 코드를 입력하세요\"><br />
+			' : '' ) . "
 
 			<br />
 
