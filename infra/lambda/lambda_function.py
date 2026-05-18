@@ -4,6 +4,7 @@ import gzip
 import base64
 import os
 import urllib.request
+import pymysql
 from datetime import datetime, timezone, timedelta
 
 
@@ -59,39 +60,70 @@ DISCORD_WEBHOOK_URL = os.environ.get('DISCORD_WEBHOOK_URL')
 
 def send_discord(time_str, client_ip, country, uri, method, rule_kor, args, summary):
     webhook_url = DISCORD_WEBHOOK_URL
-
     payload = {
         "embeds": [
             {
                 "title": "🚨 보안 관제 이상 탐지 알림",
-                "color": 16711680,  # 빨간색
+                "color": 16711680,
                 "fields": [
-                    {"name": "📅 탐지 시각",     "value": time_str,              "inline": False},
+                    {"name": "📅 탐지 시각",     "value": time_str,                   "inline": False},
                     {"name": "🌐 공격 IP",        "value": f"{client_ip} ({country})", "inline": True},
-                    {"name": "⚔️ 공격 기법",      "value": rule_kor,              "inline": True},
-                    {"name": "🛡️ 현재 상태",      "value": "차단됨 (BLOCK)",      "inline": True},
-                    {"name": "🔗 요청 URL",        "value": uri,                   "inline": False},
-                    {"name": "📡 요청 방식",       "value": method,                "inline": True},
-                    {"name": "📝 공격 파라미터",   "value": args or "없음",        "inline": True},
-                    {"name": "🤖 AI 관제 요약",    "value": summary,               "inline": False},
+                    {"name": "⚔️ 공격 기법",      "value": rule_kor,                   "inline": True},
+                    {"name": "🛡️ 현재 상태",      "value": "차단됨 (BLOCK)",           "inline": True},
+                    {"name": "🔗 요청 URL",        "value": uri,                        "inline": False},
+                    {"name": "📡 요청 방식",       "value": method,                     "inline": True},
+                    {"name": "📝 공격 파라미터",   "value": args or "없음",             "inline": True},
+                    {"name": "🤖 AI 관제 요약",    "value": summary,                    "inline": False},
                 ],
                 "footer": {"text": "⚠️ 즉각적인 확인 및 조치가 필요합니다."},
             }
         ]
     }
-
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
         webhook_url,
         data=data,
-        headers={
-            "Content-Type": "application/json",
-            "User-Agent": "curl/8.7.1",
-        },
+        headers={"Content-Type": "application/json", "User-Agent": "curl/8.7.1"},
         method="POST",
     )
     with urllib.request.urlopen(req) as resp:
         print(f"Discord 알림 전송 완료: HTTP {resp.status}")
+
+
+def save_to_mysql(time_str, client_ip, country, uri, method, rule_kor, args, summary):
+    try:
+        conn = pymysql.connect(
+            host=os.environ.get('RDS_HOST'),
+            user=os.environ.get('RDS_USER'),
+            password=os.environ.get('RDS_PASSWORD'),
+            database=os.environ.get('RDS_DATABASE'),
+            connect_timeout=5
+        )
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS attack_logs (
+                    id          INT AUTO_INCREMENT PRIMARY KEY,
+                    detected_at VARCHAR(50),
+                    client_ip   VARCHAR(50),
+                    country     VARCHAR(10),
+                    uri         VARCHAR(500),
+                    method      VARCHAR(10),
+                    attack_type VARCHAR(100),
+                    parameters  VARCHAR(500),
+                    ai_summary  TEXT,
+                    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            cursor.execute("""
+                INSERT INTO attack_logs
+                    (detected_at, client_ip, country, uri, method, attack_type, parameters, ai_summary)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """, (time_str, client_ip, country, uri, method, rule_kor, args, summary))
+        conn.commit()
+        conn.close()
+        print(f"MySQL 저장 완료: {client_ip} | {rule_kor}")
+    except Exception as e:
+        print(f"MySQL 저장 실패: {str(e)}")
 
 
 def lambda_handler(event, context):
@@ -135,7 +167,6 @@ def lambda_handler(event, context):
         except Exception as e:
             summary = f"LLM 분석 실패: {str(e)}"
 
-        # ── 이메일 알림 ──
         subject = f"[보안 관제] {rule_kor} 탐지 - {client_ip} ({time_str})"
         body = f"""
 ╔══════════════════════════════════════╗
@@ -155,21 +186,25 @@ def lambda_handler(event, context):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ⚠️  즉각적인 확인 및 조치가 필요합니다.
         """
-        alert_email = os.environ.get('ALERT_EMAIL')
-        ses.send_email(
-            Source=alert_email,
-            Destination={'ToAddresses': [alert_email]},
-            Message={
-                'Subject': {'Data': subject, 'Charset': 'UTF-8'},
-                'Body': {'Text': {'Data': body, 'Charset': 'UTF-8'}}
-            }
-        )
-        print(f"이메일 알림 전송 완료: {client_ip} | {rule_kor}")
+        try:
+            alert_email = os.environ.get('ALERT_EMAIL')
+            ses.send_email(
+                Source=alert_email,
+                Destination={'ToAddresses': [alert_email]},
+                Message={
+                    'Subject': {'Data': subject, 'Charset': 'UTF-8'},
+                    'Body': {'Text': {'Data': body, 'Charset': 'UTF-8'}}
+                }
+            )
+            print(f"이메일 알림 전송 완료: {client_ip} | {rule_kor}")
+        except Exception as e:
+            print(f"이메일 알림 실패: {str(e)}")
 
-        # ── Discord 알림 ──
         try:
             send_discord(time_str, client_ip, country, uri, method, rule_kor, args, summary)
         except Exception as e:
             print(f"Discord 알림 실패: {str(e)}")
+
+        save_to_mysql(time_str, client_ip, country, uri, method, rule_kor, args, summary)
 
     return {'statusCode': 200}
