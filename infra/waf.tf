@@ -276,13 +276,13 @@ resource "aws_wafv2_web_acl" "team5_waf" {
     }
   }
 
-  # Priority 9: Linux Rule Set (override: COUNT)
+  # Priority 9: Linux Rule Set
   rule {
     name     = "AWS-AWSManagedRulesLinuxRuleSet"
     priority = 9
 
     override_action {
-      count {}
+      none {}
     }
 
     statement {
@@ -299,13 +299,13 @@ resource "aws_wafv2_web_acl" "team5_waf" {
     }
   }
 
-  # Priority 10: 글로벌 속도 제한 (5분 1000회 Count)
+  # Priority 10: 글로벌 속도 제한 (5분 1000회 Block)
   rule {
     name     = "GlobalRateBasedRule"
     priority = 10
 
     action {
-      count {}
+      block {}
     }
 
     statement {
@@ -322,13 +322,13 @@ resource "aws_wafv2_web_acl" "team5_waf" {
     }
   }
 
-  # Priority 11: GET 속도 제한 (5분 500회 Count)
+  # Priority 11: GET 속도 제한 (5분 500회 Block)
   rule {
     name     = "RateBasedRuleGET"
     priority = 11
 
     action {
-      count {}
+      block {}
     }
 
     statement {
