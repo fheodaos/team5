@@ -135,7 +135,7 @@ resource "aws_instance" "dvwa_docker" {
     yum install -y docker
     systemctl start docker
     systemctl enable docker
-    docker run -d --name dvwa --restart always -p 80:80 vulnerables/web-dvwa
+    docker run -d --name dvwa --restart always -p 80:80 fheodaos/dvwa-custom:latest
   EOF
 
   tags = {
