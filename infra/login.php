@@ -8,6 +8,14 @@ dvwaPageStartup( array( 'phpids' ) );
 dvwaDatabaseConnect();
 
 // ── IP별 로그인 시도 횟수 추적 ──
+function getRealIp() {
+	if ( !empty( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) {
+		$ips = explode( ',', $_SERVER['HTTP_X_FORWARDED_FOR'] );
+		return trim( $ips[0] );
+	}
+	return $_SERVER['REMOTE_ADDR'];
+}
+
 function getAttemptFile( $ip ) {
 	return '/tmp/dvwa_attempts_' . md5( $ip ) . '.json';
 }
@@ -34,7 +42,7 @@ if( isset( $_POST[ 'Login' ] ) ) {
 	checkToken( $_REQUEST[ 'user_token' ], $_SESSION[ 'session_token' ], 'login.php' );
 
 	// CAPTCHA 검증 (5회 이상 실패 시)
-	if ( countRecentAttempts( $_SERVER['REMOTE_ADDR'] ) >= 5 ) {
+	if ( countRecentAttempts( getRealIp() ) >= 5 ) {
 		$captchaInput = isset( $_POST['captcha'] ) ? strtoupper( trim( $_POST['captcha'] ) ) : '';
 		$captchaCode  = isset( $_SESSION['captcha_code'] ) ? $_SESSION['captcha_code'] : '';
 		if ( $captchaInput !== $captchaCode ) {
@@ -71,8 +79,8 @@ if( isset( $_POST[ 'Login' ] ) ) {
 	}
 
 	// Login failed
-	recordAttempt( $_SERVER['REMOTE_ADDR'] );
-	if ( countRecentAttempts( $_SERVER['REMOTE_ADDR'] ) >= 5 ) {
+	recordAttempt( getRealIp() );
+	if ( countRecentAttempts( getRealIp() ) >= 5 ) {
 		$_SESSION['require_captcha'] = true;
 	}
 	dvwaMessagePush( 'Login failed' );
