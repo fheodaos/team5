@@ -7,6 +7,12 @@ import urllib.request
 from datetime import datetime, timezone, timedelta
 from collections import Counter
 
+try:
+    import pymysql
+    PYMYSQL_AVAILABLE = True
+except ImportError:
+    PYMYSQL_AVAILABLE = False
+
 
 # ─────────────────────────────────────────────
 # 설정값
@@ -288,6 +294,52 @@ def send_email(time_str, client_ip, country, uri, method, rule_kor, args, summar
 
 
 # ─────────────────────────────────────────────
+# MySQL 저장
+# ─────────────────────────────────────────────
+def save_to_mysql(time_str, client_ip, country, uri, method, rule_kor, args, summary, tier, score):
+    if not PYMYSQL_AVAILABLE or not os.environ.get('RDS_HOST'):
+        return
+
+    try:
+        conn = pymysql.connect(
+            host=os.environ.get('RDS_HOST'),
+            user=os.environ.get('RDS_USER'),
+            password=os.environ.get('RDS_PASSWORD'),
+            database=os.environ.get('RDS_DATABASE'),
+            connect_timeout=5,
+            read_timeout=5,
+            write_timeout=5,
+        )
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS attack_logs (
+                    id          INT AUTO_INCREMENT PRIMARY KEY,
+                    detected_at VARCHAR(50),
+                    client_ip   VARCHAR(50),
+                    country     VARCHAR(10),
+                    uri         VARCHAR(500),
+                    method      VARCHAR(10),
+                    attack_type VARCHAR(100),
+                    parameters  VARCHAR(500),
+                    ai_summary  TEXT,
+                    tier        VARCHAR(10),
+                    score       INT,
+                    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            cursor.execute("""
+                INSERT INTO attack_logs
+                    (detected_at, client_ip, country, uri, method, attack_type, parameters, ai_summary, tier, score)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (time_str, client_ip, country, uri, method, rule_kor, args, summary, tier, score))
+        conn.commit()
+        conn.close()
+        print(f"MySQL 저장 완료: {client_ip} | {rule_kor} | {tier} {score}점")
+    except Exception as e:
+        print(f"MySQL 저장 실패: {e}")
+
+
+# ─────────────────────────────────────────────
 # Lambda 핸들러
 # ─────────────────────────────────────────────
 def lambda_handler(event, context):
@@ -350,5 +402,7 @@ def lambda_handler(event, context):
             send_discord(time_str, client_ip, country, uri, method, rule_kor, args, summary, tier, score, model_id=model)
         except Exception as e:
             print(f"Discord 알림 실패: {e}")
+
+        save_to_mysql(time_str, client_ip, country, uri, method, rule_kor, args, summary, tier, score)
 
     return {'statusCode': 200}

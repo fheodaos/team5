@@ -22,3 +22,8 @@ output "admin_ipset_id" {
   description = "AdminIPSet-tf ID (Lambda 환경변수용)"
   value       = aws_wafv2_ip_set.admin_ipset.id
 }
+
+output "rds_endpoint" {
+  description = "RDS MySQL 엔드포인트"
+  value       = aws_db_instance.team5_rds.address
+}

@@ -22,3 +22,8 @@ variable "discord_webhook_url" {
   description = "Discord Webhook URL for security alerts"
   sensitive   = true
 }
+
+variable "rds_password" {
+  description = "RDS MySQL 비밀번호"
+  sensitive   = true
+}

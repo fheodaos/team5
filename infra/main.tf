@@ -135,6 +135,7 @@ resource "aws_instance" "dvwa_docker" {
     yum install -y docker
     systemctl start docker
     systemctl enable docker
+    yum install -y mariadb105 || true
     docker run -d --name dvwa --restart always -p 80:80 fheodaos/dvwa-custom:latest
   EOF
 

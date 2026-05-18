@@ -107,6 +107,10 @@ resource "aws_lambda_function" "waf_log_processor" {
       ADMIN_IPS           = replace(var.admin_ip, "/32", "")
       ALERT_EMAIL         = var.alert_email
       DISCORD_WEBHOOK_URL = var.discord_webhook_url
+      RDS_HOST            = aws_db_instance.team5_rds.address
+      RDS_USER            = "admin"
+      RDS_PASSWORD        = var.rds_password
+      RDS_DATABASE        = "security_logs"
     }
   }
 
