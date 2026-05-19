@@ -23,7 +23,7 @@ RULE_WEIGHTS = {
     "AWS-AWSManagedRulesKnownBadInputsRuleSet":  30,
     "BlockedIP-Reaccess":                        30,
     "AdminPath-Protect":                         25,
-    "AWS-AWSManagedRulesCommonRuleSet":          25,
+    "AWS-AWSManagedRulesCommonRuleSet":          40,
     "GlobalRateBasedRule":                       25,
     "AWS-AWSManagedRulesAnonymousIpList":        20,
     "AWS-AWSManagedRulesAmazonIpReputationList": 20,
@@ -93,7 +93,7 @@ def compute_risk_score(block_logs: list) -> dict:
     if score >= 70:
         tier  = "CRITICAL"
         model = "us.meta.llama3-1-70b-instruct-v1:0"
-    elif score >= 40:
+    elif score >= 30:
         tier  = "WARNING"
         model = "us.meta.llama3-1-8b-instruct-v1:0"
     else:
