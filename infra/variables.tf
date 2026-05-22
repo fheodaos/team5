@@ -1,25 +1,25 @@
 variable "admin_ip" {
-  default = "211.244.58.127/32"
+  description = "관리자 IP (CIDR 형식, 예: 1.2.3.4/32) - SSH 접근 허용 IP"
 }
 
 variable "mina_ip" {
-  default = "210.97.74.152/32"
+  description = "팀원 IP (CIDR 형식, 예: 1.2.3.4/32) - SSH 접근 허용 IP"
 }
 
 variable "alert_email" {
-  default = "yun090405@gmail.com"
+  description = "보안 알림을 받을 이메일 주소 (AWS SES 인증 필요)"
 }
 
 variable "account_id" {
-  default = "969779760570"
+  description = "AWS 계정 ID (12자리 숫자)"
 }
 
 variable "key_pair_name" {
-  default = "team5-key"
+  description = "EC2에 사용할 키페어 이름 (AWS 콘솔에서 미리 생성 필요)"
 }
 
 variable "discord_webhook_url" {
-  description = "Discord Webhook URL for security alerts"
+  description = "Discord Webhook URL (보안 알림 전송용)"
   sensitive   = true
 }
 
